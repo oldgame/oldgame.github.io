@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN" itemscope itemtype="http://schema.org/WebPage">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="profile" href="http://gmpg.org/xfn/11">
+<link rel="pingback" href="https://dos622.game.blog/xmlrpc.php">
+
+<title>blog.html &#8211; 永恒的记忆</title>
+
+<!-- Async WordPress.com Remote Login -->
+<script id="wpcom_remote_login_js">
+var wpcom_remote_login_extra_auth = '';
+function wpcom_remote_login_remove_dom_node_id( element_id ) {
+	var dom_node = document.getElementById( element_id );
+	if ( dom_node ) { dom_node.remove(); }
+}
+function wpcom_remote_login_remove_dom_node_classes( class_name ) {
+	var dom_nodes = document.querySelectorAll( '.' + class_name );
+	for ( var i = 0; i < dom_nodes.length; i++ ) {
+		dom_nodes[i].remove();
+	}
+}
+function wpcom_remote_login_final_cleanup() {
+	wpcom_remote_login_remove_dom_node_classes( "wpcom_remote_login_msg" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_key" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_validate" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_js" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_request_access_iframe" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_request_access_styles" );
+}
+
+// Watch for messages back from the remote login
+window.addEventListener( "message", function( e ) {
+	if ( e.origin === "https://r-login.wordpress.com" ) {
+		var data = {};
+		try {
+			data = JSON.parse( e.data );
+		} catch( e ) {
+			wpcom_remote_login_final_cleanup();
+			return;
+		}
+
+		if ( data.msg === 'LOGIN' ) {
+			// Clean up the login check iframe
+			wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_key" );
+
+			var id_regex = new RegExp( /^[0-9]+$/ );
+			var token_regex = new RegExp( /^.*|.*|.*$/ );
+			if (
+				token_regex.test( data.token )
+				&& id_regex.test( data.wpcomid )
+			) {
+				// We have everything we need to ask for a login
+				var script = document.createElement( "script" );
+				script.setAttribute( "id", "wpcom_remote_login_validate" );
+				script.src = '/remote-login.php?wpcom_remote_login=validate'
+					+ '&wpcomid=' + data.wpcomid
+					+ '&token=' + encodeURIComponent( data.token )
+					+ '&host=' + window.location.protocol
+						+ '//' + window.location.hostname;
+				document.body.appendChild( script );
+			}
+
+			return;
+		}
+
+		// Safari ITP, not logged in, so redirect
+		if ( data.msg === 'LOGIN-REDIRECT' ) {
+			window.location = 'https://wordpress.com/log-in?redirect_to=' + window.location.href;
+			return;
+		}
+
+		// Safari ITP, storage access failed, remove the request
+		if ( data.msg === 'LOGIN-REMOVE' ) {
+			var css_zap = 'html { -webkit-transition: margin-top 1s; transition: margin-top 1s; } /* 9001 */ html { margin-top: 0 !important; } * html body { margin-top: 0 !important; } @media screen and ( max-width: 782px ) { html { margin-top: 0 !important; } * html body { margin-top: 0 !important; } }';
+			var style_zap = document.createElement( 'style' );
+			style_zap.type = 'text/css';
+			style_zap.appendChild( document.createTextNode( css_zap ) );
+			document.body.appendChild( style_zap );
+
+			var e = document.getElementById( 'wpcom_request_access_iframe' );
+			e.parentNode.removeChild( e );
+
+			document.cookie = 'wordpress_com_login_access=denied; path=/; max-age=31536000';
+
+			return;
+		}
+
+		// Safari ITP
+		if ( data.msg === 'REQUEST_ACCESS' ) {
+			console.log( 'request access: safari' );
+
+			// Check ITP iframe enable/disable knob
+			if ( wpcom_remote_login_extra_auth !== 'safari_itp_iframe' ) {
+				return;
+			}
+
+			// If we are in a "private window" there is no ITP.
+			var private_window = false;
+			try {
+				var opendb = window.openDatabase( null, null, null, null );
+			} catch( e ) {
+				private_window = true;
+			}
+
+			if ( private_window ) {
+				console.log( 'private window' );
+				return;
+			}
+
+			var iframe = document.createElement( 'iframe' );
+			iframe.id = 'wpcom_request_access_iframe';
+			iframe.setAttribute( 'scrolling', 'no' );
+			iframe.setAttribute( 'sandbox', 'allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-top-navigation-by-user-activation' );
+			iframe.src = 'https://r-login.wordpress.com/remote-login.php?wpcom_remote_login=request_access&origin=' + encodeURIComponent( data.origin ) + '&wpcomid=' + encodeURIComponent( data.wpcomid );
+
+			var css = 'html { -webkit-transition: margin-top 1s; transition: margin-top 1s; } /* 9001 */ html { margin-top: 46px !important; } * html body { margin-top: 46px !important; } @media screen and ( max-width: 660px ) { html { margin-top: 71px !important; } * html body { margin-top: 71px !important; } #wpcom_request_access_iframe { display: block; height: 71px !important; } } #wpcom_request_access_iframe { border: 0px; height: 46px; position: fixed; top: 0; left: 0; width: 100%; min-width: 100%; z-index: 99999; background: #23282d; } ';
+
+			var style = document.createElement( 'style' );
+			style.type = 'text/css';
+			style.id = 'wpcom_request_access_styles';
+			style.appendChild( document.createTextNode( css ) );
+			document.body.appendChild( style );
+
+			document.body.appendChild( iframe );
+		}
+
+		if ( data.msg === 'DONE' ) {
+			wpcom_remote_login_final_cleanup();
+		}
+	}
+}, false );
+
+// Inject the remote login iframe after the page has had a chance to load
+// more critical resources
+window.addEventListener( "DOMContentLoaded", function( e ) {
+	var iframe = document.createElement( "iframe" );
+	iframe.style.display = "none";
+	iframe.setAttribute( "scrolling", "no" );
+	iframe.setAttribute( "id", "wpcom_remote_login_key" );
+	iframe.src = "https://r-login.wordpress.com/remote-login.php"
+		+ "?wpcom_remote_login=key"
+		+ "&origin=aHR0cHM6Ly9kb3M2MjIuZ2FtZS5ibG9n"
+		+ "&wpcomid=167652614"
+		+ "&time=1570671185";
+	document.body.appendChild( iframe );
+}, false );
+</script>
+<link rel='dns-prefetch' href='https://s2.wp.com/' />
+<link rel='dns-prefetch' href='https://s1.wp.com/' />
+<link rel='dns-prefetch' href='https://dos622game.wordpress.com/' />
+<link rel='dns-prefetch' href='https://s0.wp.com/' />
+<link rel='dns-prefetch' href='https://fonts.googleapis.com/' />
+<link rel="alternate" type="application/rss+xml" title="永恒的记忆 &raquo; Feed" href="../feed/index.html" />
+<link rel="alternate" type="application/rss+xml" title="永恒的记忆 &raquo; 评论Feed" href="../comments/feed/index.html" />
+	<script type="text/javascript">
+		/* <![CDATA[ */
+		function addLoadEvent(func) {
+			var oldonload = window.onload;
+			if (typeof window.onload != 'function') {
+				window.onload = func;
+			} else {
+				window.onload = function () {
+					oldonload();
+					func();
+				}
+			}
+		}
+		/* ]]> */
+	</script>
+			<script type="text/javascript">
+			window._wpemojiSettings = {"baseUrl":"https:\/\/s0.wp.com\/wp-content\/mu-plugins\/wpcom-smileys\/twemoji\/2\/72x72\/","ext":".png","svgUrl":"https:\/\/s0.wp.com\/wp-content\/mu-plugins\/wpcom-smileys\/twemoji\/2\/svg\/","svgExt":".svg","source":{"concatemoji":"https:\/\/s2.wp.com\/wp-includes\/js\/wp-emoji-release.min.js?m=1556893897h&ver=5.3-beta2-46373"}};
+			!function(a,b,c){function d(a,b){var c=String.fromCharCode;l.clearRect(0,0,k.width,k.height),l.fillText(c.apply(this,a),0,0);var d=k.toDataURL();l.clearRect(0,0,k.width,k.height),l.fillText(c.apply(this,b),0,0);var e=k.toDataURL();return d===e}function e(a){var b;if(!l||!l.fillText)return!1;switch(l.textBaseline="top",l.font="600 32px Arial",a){case"flag":return!(b=d([55356,56826,55356,56819],[55356,56826,8203,55356,56819]))&&(b=d([55356,57332,56128,56423,56128,56418,56128,56421,56128,56430,56128,56423,56128,56447],[55356,57332,8203,56128,56423,8203,56128,56418,8203,56128,56421,8203,56128,56430,8203,56128,56423,8203,56128,56447]),!b);case"emoji":return b=d([55357,56424,55356,57342,8205,55358,56605,8205,55357,56424,55356,57340],[55357,56424,55356,57342,8203,55358,56605,8203,55357,56424,55356,57340]),!b}return!1}function f(a){var c=b.createElement("script");c.src=a,c.defer=c.type="text/javascript",b.getElementsByTagName("head")[0].appendChild(c)}var g,h,i,j,k=b.createElement("canvas"),l=k.getContext&&k.getContext("2d");for(j=Array("flag","emoji"),c.supports={everything:!0,everythingExceptFlag:!0},i=0;i<j.length;i++)c.supports[j[i]]=e(j[i]),c.supports.everything=c.supports.everything&&c.supports[j[i]],"flag"!==j[i]&&(c.supports.everythingExceptFlag=c.supports.everythingExceptFlag&&c.supports[j[i]]);c.supports.everythingExceptFlag=c.supports.everythingExceptFlag&&!c.supports.flag,c.DOMReady=!1,c.readyCallback=function(){c.DOMReady=!0},c.supports.everything||(h=function(){c.readyCallback()},b.addEventListener?(b.addEventListener("DOMContentLoaded",h,!1),a.addEventListener("load",h,!1)):(a.attachEvent("onload",h),b.attachEvent("onreadystatechange",function(){"complete"===b.readyState&&c.readyCallback()})),g=c.source||{},g.concatemoji?f(g.concatemoji):g.wpemoji&&g.twemoji&&(f(g.twemoji),f(g.wpemoji)))}(window,document,window._wpemojiSettings);
+		</script>
+		<style type="text/css">
+img.wp-smiley,
+img.emoji {
+	display: inline !important;
+	border: none !important;
+	box-shadow: none !important;
+	height: 1em !important;
+	width: 1em !important;
+	margin: 0 .07em !important;
+	vertical-align: -0.1em !important;
+	background: none !important;
+	padding: 0 !important;
+}
+</style>
+	<link rel='stylesheet' id='all-css-0-1' href='https://s0.wp.com/_static/??-eJyNUtFuwyAM/KERJ5qa5mXat4TEYzQQEDZK8/cj0E5do0Z7QdjcnY8DWLwY3Mw4M9govIlKzwSLH5wVZLXB9amqBqI3eKBJ49Qv0fZhQtazErIPkKB/Ozvyw0yjJyS4IPt+mESudvA7VsVUSgwqnQSEtmqrGmTUZtzsZLoMfViBeDX4D5nMIkg+Jwz3qggeSwzuBm6q5pRMjJq4eKCqMLPKS/5XNEaQZhQ46hxTOYG6amrwjpjSZYiLpyL/3D1Kdcsn9a3veUPYNKVHgzbBjmiLHhUy5Rcse8F4PabkXyKlD0gk0mp1tIK/06z9Q5Y2+ChBX7WbX6S8g92STbhP+9GcznX73nXd+fIDo40KAg==?cssminify=yes' type='text/css' media='all' />
+<style id='ixion-style-inline-css' type='text/css'>
+.byline { clip: rect(1px, 1px, 1px, 1px); height: 1px; position: absolute; overflow: hidden; width: 1px; }
+</style>
+<link rel='stylesheet' id='ixion-fonts-archivo-css'  href='https://fonts.googleapis.com/css?family=Archivo+Narrow%3A400%2C400i%2C700%2C700i&amp;subset=latin%2Clatin-ext' type='text/css' media='all' />
+<link rel='stylesheet' id='all-css-2-1' href='https://s2.wp.com/_static/??-eJx9T+0OwiAMfCGxUaf+Mj4LYodVoGQtQd9e5mKyxLh/d7neR6Fm4zgpJgW9YUSBXC5AT+IEVgRVoG+6gGPOONywkuraiaxgZo3F5FA8JQGPCQdqwh/44/2ppeRA9BXQ1Ow4LpVVuvpxIpam8oPQBFtBMeZgtYV+YqYAgsQ6jfmC5TfYBHZWx0VzYvpgaViyDngJ7Bv00K5mdDSd42mz3x4Pu27THe5v8OmQVw==?cssminify=yes' type='text/css' media='all' />
+<link rel='stylesheet' id='print-css-3-1' href='https://s2.wp.com/wp-content/mu-plugins/global-print/global-print.css?m=1465851035h&cssminify=yes' type='text/css' media='print' />
+<link rel='stylesheet' id='all-css-4-1' href='https://s1.wp.com/_static/??/wp-content/mu-plugins/actionbar/actionbar.css,/wp-content/themes/h4/global.css?m=1560469195j&cssminify=yes' type='text/css' media='all' />
+<script type='text/javascript' src='https://s2.wp.com/_static/??-eJyFztEKwjAMBdAfsisyOnwRv6XWOFKXtDbphn69HeiDMBQC9+EeuLFLNshhqhcQG9vdK5THO7ooO/sLGMKxeIWOkD84JFZgXW1OogQifoSNltIZJzBVoDTA2mauacN9v4Q8Iyx/WQTNPtxMAcHnun6i4965Q++GwfXxBTkPW9k='></script>
+<link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://dos622game.wordpress.com/xmlrpc.php?rsd" />
+<link rel="wlwmanifest" type="application/wlwmanifest+xml" href="https://s1.wp.com/wp-includes/wlwmanifest.xml" /> 
+<meta name="generator" content="WordPress.com" />
+
+<!-- Jetpack Open Graph Tags -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="永恒的记忆" />
+<meta property="og:description" content="我们并肩携手，一路追寻流逝的岁月" />
+<meta property="og:url" content="https://dos622.game.blog/blog-html-2/" />
+<meta property="og:site_name" content="永恒的记忆" />
+<meta property="og:image" content="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-2.png?w=200" />
+<meta property="og:image:width" content="200" />
+<meta property="og:image:height" content="200" />
+<meta property="og:locale" content="zh_CN" />
+<meta name="twitter:site" content="@wordpressdotcom" />
+
+<!-- End Jetpack Open Graph Tags -->
+<link rel="search" type="application/opensearchdescription+xml" href="https://dos622.game.blog/osd.xml" title="永恒的记忆" />
+<link rel="search" type="application/opensearchdescription+xml" href="https://s1.wp.com/opensearch.xml" title="WordPress.com" />
+<meta name="theme-color" content="#ffffff" />
+<meta name="application-name" content="永恒的记忆" /><meta name="msapplication-window" content="width=device-width;height=device-height" /><meta name="msapplication-tooltip" content="我们并肩携手，一路追寻流逝的岁月" /><meta name="msapplication-task" content="name=订阅;action-uri=https://dos622.game.blog/feed/;icon-uri=https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-2.png?w=16" /><meta name="msapplication-task" content="name=注册免费博客;action-uri=http://wordpress.com/signup/;icon-uri=https://s1.wp.com/i/favicon.ico" /><meta name="msapplication-task" content="name=WordPress.com 支持;action-uri=http://support.wordpress.com/;icon-uri=https://s1.wp.com/i/favicon.ico" /><meta name="msapplication-task" content="name=WordPress.com 论坛;action-uri=http://forums.wordpress.com/;icon-uri=https://s1.wp.com/i/favicon.ico" /><meta name="description" content="我们并肩携手，一路追寻流逝的岁月" />
+	<style type="text/css">
+			.site-title a,
+		.site-description {
+			position: absolute;
+			clip: rect(1px, 1px, 1px, 1px);
+		}
+		</style>
+	<link rel="icon" href="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-2.png?w=32" sizes="32x32" />
+<link rel="icon" href="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-2.png?w=192" sizes="192x192" />
+<link rel="apple-touch-icon-precomposed" href="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-2.png?w=180" />
+<meta name="msapplication-TileImage" content="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-2.png?w=270" />
+</head>
+
+<body class="blog wp-custom-logo wp-embed-responsive customizer-styles-applied hfeed has-cta-button has-description header-text-hidden no-featured-posts header-overlay-none featured-content-overlay-none admin-bar author-hidden highlander-enabled highlander-light">
+<div id="page" class="site">
+	<a class="skip-link screen-reader-text" href="index.html#content">跳转到内容</a>
+
+	<header id="masthead" class="site-header" role="banner">
+
+		<div class="utility-container">
+						
+<form role="search" method="get" class="search-form" action="../index.html">
+	<label>
+		<span class="screen-reader-text">搜索：</span>
+		<input type="search" class="search-field"
+		placeholder="搜索&hellip;"
+		value="" name="s"
+		title="搜索：" />
+		<span class="search-form-icon"></span>
+	</label>
+	<input type="submit" class="search-submit"
+		value="搜索" />
+</form>
+		</div>
+
+		<div class="branding-container">
+					<div class="site-branding">
+			<a href="../index.html" class="custom-logo-link" rel="home"><img width="712" height="595" src="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png" class="custom-logo" alt="永恒的记忆" srcset="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png?w=712&amp;h=595 712w, https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png?w=150&amp;h=125 150w, https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png?w=300&amp;h=251 300w, https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png?w=768&amp;h=641 768w, https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png?w=1024&amp;h=855 1024w, https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png 1079w" sizes="(max-width: 712px) 100vw, 712px" data-attachment-id="96" data-permalink="https://dos622.game.blog/cropped-logo-ts-1-png/" data-orig-file="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png" data-orig-size="1079,901" data-comments-opened="0" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="cropped-logo-ts-1.png" data-image-description="&lt;p&gt;https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png&lt;/p&gt;
+" data-medium-file="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png?w=300" data-large-file="https://dos622game.files.wordpress.com/2019/10/cropped-logo-ts-1.png?w=712" /></a>
+								<p class="site-title"><a href="../index.html" rel="home">永恒的记忆</a></p>
+					</div><!-- .site-branding -->
+			<nav id="site-navigation" class="main-navigation" role="navigation">
+	<button class="menu-toggle" aria-controls="top-menu" aria-expanded="false">选单</button>
+	<div class="menu-primary-container"><ul id="top-menu" class="menu"><li id="menu-item-8" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-8"><a href="../index.html">Home</a></li>
+<li id="menu-item-9" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-9"><a href="../�%2585��%258E/index.html">关于</a></li>
+<li id="menu-item-10" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10"><a href="../�%2581%2594系信�%2581�/index.html">联系信息</a></li>
+</ul></div></nav>
+		</div>
+
+	</header>
+
+	
+	<div id="content" class="site-content">
+	<div id="primary" class="content-area">
+		<main id="main" class="site-main" role="main">
+
+						<header>
+					<h1 class="page-title screen-reader-text">blog.html</h1>
+				</header>
+			
+<article id="post-4" class="post-4 post type-post status-publish format-standard hentry category-uncategorized no-featured-image">
+	<div class="entry-body">
+		<header class="entry-header">
+					<div class="entry-meta">
+			<span class="posted-on"><a href="../2019/10/04/第�%2580�%2587�%258D%259A�%2596%2587/index.html" rel="bookmark"><time class="entry-date published" datetime="2019-10-04T20:36:02+08:00">2019年10月4日</time><time class="updated" datetime="2019-10-04T20:41:04+08:00">2019年10月4日</time></a></span> <span class="byline"><span class="author vcard"><a class="url fn n" href="../author/koeiol/index.html">Aaron.Xu</a></span></span> 					</div><!-- .entry-meta -->
+<h2 class="entry-title"><a href="../2019/10/04/第�%2580�%2587�%258D%259A�%2596%2587/index.html" rel="bookmark">第一篇博文</a></h2>		</header>
+		<div class="entry-content">
+			<p>这是您的第一篇文章。点击“编辑”链接修改或删除该文章，或者<a href="https://wordpress.com/post">开始撰写新文章</a>。如果您愿意，可以通过这篇文章告诉读者您创建此博客的原因以及您打算使用它做些什么。如需帮助，欢迎您前往<a href="https://en.support.wordpress.com/">支持论坛</a>提问。</p>
+		</div><!-- .entry-content -->
+
+		
+			</div> <!-- .entry-body -->
+</article><!-- #post-## -->
+
+		</main>
+	</div>
+
+<aside id="secondary" class="widget-area" role="complementary">
+	<section id="search-1" class="widget widget_search"><h2 class="widget-title">搜索</h2>
+<form role="search" method="get" class="search-form" action="../index.html">
+	<label>
+		<span class="screen-reader-text">搜索：</span>
+		<input type="search" class="search-field"
+		placeholder="搜索&hellip;"
+		value="" name="s"
+		title="搜索：" />
+		<span class="search-form-icon"></span>
+	</label>
+	<input type="submit" class="search-submit"
+		value="搜索" />
+</form>
+</section><section id="text-1" class="widget widget_text"><h2 class="widget-title">边栏文本小组件</h2>			<div class="textwidget">这是文本小组件。通过文本小组件，您可以向主题的所有边栏添加文本或 HTML。您可以使用文本小组件显示文本、链接、图片、HTML 或这些内容的组合，还可以在<a href="https://wordpress.com/customize/">定制器</a>的“小组件”部分编辑这些内容。</div>
+		</section></aside>
+
+	</div>
+	<footer id="colophon" class="site-footer" role="contentinfo">
+				<div class="site-info">
+	<a href="https://wordpress.com/?ref=footer_segment_blog" rel="nofollow">在WordPress.com的博客.</a>
+	
+	</div><!-- .site-info -->	</footer>
+</div>
+<!--  -->
+<div id="wpadminbar" class="marketing-bar"><div class="marketing-bar-text">在 WordPress.com 上创建您自己的网站</div><a class="marketing-bar-button" href="https://zh-cn.wordpress.com/?ref=marketing_bar">开始</a></div><script type='text/javascript' src='https://0.gravatar.com/js/gprofiles.js?ver=201941y'></script>
+<script type='text/javascript'>
+/* <![CDATA[ */
+var WPGroHo = {"my_hash":""};
+/* ]]> */
+</script>
+<script type='text/javascript' src='https://s1.wp.com/wp-content/mu-plugins/gravatar-hovercards/wpgroho.js?m=1380573781h'></script>
+
+	<script>
+		//initialize and attach hovercards to all gravatars
+		jQuery( document ).ready( function( $ ) {
+
+			if (typeof Gravatar === "undefined"){
+				return;
+			}
+
+			if ( typeof Gravatar.init !== "function" ) {
+				return;
+			}			
+
+			Gravatar.profile_cb = function( hash, id ) {
+				WPGroHo.syncProfileData( hash, id );
+			};
+			Gravatar.my_hash = WPGroHo.my_hash;
+			Gravatar.init( 'body', '#wp-admin-bar-my-account' );
+		});
+	</script>
+
+		<div style="display:none">
+	</div>
+<div class="widget widget_eu_cookie_law_widget"><div
+	class="hide-on-button ads-active"
+	data-hide-timeout="30"
+	data-consent-expiration="180"
+	id="eu-cookie-law"
+>
+	<form method="post">
+		<input type="submit" value="关闭和接受" class="accept" />
+
+		隐私和 Cookie：此站点使用 Cookie。继续使用此网站，即表示您同意其使用 Cookie。<br />
+要了解包括如何管控 Cookie 在内的更多信息，请参阅此处：
+		<a href="https://automattic.com/cookies" >
+			Cookie 政策		</a>
+ </form>
+</div>
+</div><script type='text/javascript'>
+/* <![CDATA[ */
+var actionbardata = {"siteID":"167652614","siteName":"\u6c38\u6052\u7684\u8bb0\u5fc6","siteURL":"https:\/\/dos622.game.blog","icon":"<img alt='' src='https:\/\/dos622game.files.wordpress.com\/2019\/10\/cropped-logo-ts-2.png?w=50' class='avatar avatar-50' height='50' width='50' \/>","canManageOptions":"","canCustomizeSite":"","isFollowing":"","themeSlug":"pub\/ixion","signupURL":"https:\/\/wordpress.com\/start\/","loginURL":"https:\/\/wordpress.com\/log-in?redirect_to=https%3A%2F%2Fdos622.game.blog%2F2019%2F10%2F04%2F%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E6%96%87%2F&signup_flow=account&domain=dos622.game.blog","themeURL":"https:\/\/wordpress.com\/theme\/ixion\/","xhrURL":"https:\/\/dos622.game.blog\/wp-admin\/admin-ajax.php","nonce":"d002f4f96a","isSingular":"","isFolded":"","isLoggedIn":"","isMobile":"","subscribeNonce":"<input type=\"hidden\" id=\"_wpnonce\" name=\"_wpnonce\" value=\"67f4582f9b\" \/>","referer":"https:\/\/dos622.game.blog\/blog-html-2\/","canFollow":"","feedID":"100655493","statusMessage":"","customizeLink":"https:\/\/dos622game.wordpress.com\/wp-admin\/customize.php?url=https%3A%2F%2Fdos622game.wordpress.com%2Fblog-html-2%2F","i18n":{"view":"\u67e5\u770b\u7f51\u7ad9","follow":"\u5173\u6ce8","following":"\u5173\u6ce8\u4e2d","edit":"\u7f16\u8f91","login":"\u767b\u5f55","signup":"\u6ce8\u518c","customize":"\u81ea\u5b9a\u4e49","report":"\u4e3e\u62a5\u6b64\u5185\u5bb9","themeInfo":"\u83b7\u53d6\u4e3b\u9898: Ixion","shortlink":"\u590d\u5236\u77ed\u94fe\u63a5","copied":"\u5df2\u590d\u5236","followedText":"\u6b64\u65f6\uff0c\u8be5\u7ad9\u70b9\u4e2d\u7684\u65b0\u6587\u7ae0\u5c06\u663e\u793a\u5728\u60a8\u7684<a href="https://dos622.game.blog/blog-html-2/\&quot;https:\/\/wordpress.com\/\&quot;">\u9605\u8bfb\u5668<\/a>\u4e2d","foldBar":"\u6536\u8d77\u6b64\u680f","unfoldBar":"\u5c55\u5f00\u6b64\u680f","editSubs":"\u7ba1\u7406\u8ba2\u9605","viewReader":"\u5728\u9605\u8bfb\u5668\u4e2d\u67e5\u770b\u201c\u7ad9\u70b9\u201d","viewReadPost":"View post in Reader","subscribe":"\u4e3a\u6211\u6ce8\u518c","enterEmail":"\u8f93\u5165\u60a8\u7684\u7535\u5b50\u90ae\u4ef6\u5730\u5740","followers":"","alreadyUser":"\u5df2\u6709 WordPress.com \u5e10\u6237\uff1f<a href="https://dos622.game.blog/blog-html-2/\&quot;https:\/\/wordpress.com\/log-in?redirect_to=https%3A%2F%2Fdos622.game.blog%2F2019%2F10%2F04%2F%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E6%96%87%2F&amp;signup_flow=account&amp;domain=dos622.game.blog\&quot;">\u7acb\u5373\u767b\u5f55\u3002<\/a>","stats":"\u7edf\u8ba1"}};
+/* ]]> */
+</script>
+<script type='text/javascript' src='https://s2.wp.com/_static/??-eJyVkEuOAjEMRC80GYP4CBajOYtJTOPOl9jp5vikNwixaIldqapeyTLMxdiclJLCKOBoYkvl8TvKD7xFsZkS2sBJILAngXujRjdMLlD9LOuNYq+UdgF+cE6AIqSy7CeceEDt5heQeC4mcPLmmm0Tc+W1+2Z2wwJS62n2TCbgDEqxBFT68Fd20EVO5oIVIopS7crkiWpl11de3pcLWtF6WYPs8p0Feqne/o9/28P+vNvuj6fN+ARRPKOH'></script>
+<script type="text/javascript">
+// <![CDATA[
+(function() {
+try{
+  if ( window.external &&'msIsSiteMode' in window.external) {
+    if (window.external.msIsSiteMode()) {
+      var jl = document.createElement('script');
+      jl.type='text/javascript';
+      jl.async=true;
+      jl.src='/wp-content/plugins/ie-sitemode/custom-jumplist.php';
+      var s = document.getElementsByTagName('script')[0];
+      s.parentNode.insertBefore(jl, s);
+    }
+  }
+}catch(e){}
+})();
+// ]]>
+</script><script src="https://stats.wp.com/w.js?60" type="text/javascript" async defer></script>
+<script type="text/javascript">
+_tkq = window._tkq || [];
+_stq = window._stq || [];
+_tkq.push(['storeContext', {'blog_id':'167652614','blog_tz':'8','user_lang':'zh-cn','blog_lang':'zh-cn','user_id':'0'}]);
+_stq.push(['view', {'blog':'167652614','v':'wpcom','tz':'8','user_id':'0','subd':'dos622game'}]);
+_stq.push(['extra', {'crypt':'UE40eW5QN0p8M2Y/RE1mJVY3bm9aR3VCbS9mWm1pRyZuJS1LX1t5QmRXZzE3RC9rQWZHK1FjbDltdWdaMVFFZTcxUGVHLWR0WTJoSzVzc35yZFpofj9JMmZPNmJXUUZvbEd3LFdtcndNX1ZaSFtLLDhtW0MyTW1vQmYvZkt+JlNrbWJEb11vQ3AtYS89SlVORnA/OXNWfE40VT8la3Z5LV1XbUttem83Vn5LL105NTBmS3puTFVML0MmfHx0WWVHYklmSnFvWDF+Q3RHTWwyNFl5LHE9aW5NfFBDPXV3QUpXb0hkPzNnOElsMT0sJkdlczE4SjVkOVgxMXQtKzBmMFNmLm9mcUplWVJKZA=='}]);
+_stq.push([ 'clickTrackerInit', '167652614', '0' ]);
+	</script>
+<noscript><img src="https://pixel.wp.com/b.gif?v=noscript" style="height:0px;width:0px;overflow:hidden" alt="" /></noscript>
+<script>
+if ( 'object' === typeof wpcom_mobile_user_agent_info ) {
+
+	wpcom_mobile_user_agent_info.init();
+	var mobileStatsQueryString = "";
+	
+	if( false !== wpcom_mobile_user_agent_info.matchedPlatformName )
+		mobileStatsQueryString += "&x_" + 'mobile_platforms' + '=' + wpcom_mobile_user_agent_info.matchedPlatformName;
+	
+	if( false !== wpcom_mobile_user_agent_info.matchedUserAgentName )
+		mobileStatsQueryString += "&x_" + 'mobile_devices' + '=' + wpcom_mobile_user_agent_info.matchedUserAgentName;
+	
+	if( wpcom_mobile_user_agent_info.isIPad() )
+		mobileStatsQueryString += "&x_" + 'ipad_views' + '=' + 'views';
+
+	if( "" != mobileStatsQueryString ) {
+		new Image().src = document.location.protocol + '//pixel.wp.com/g.gif?v=wpcom-no-pv' + mobileStatsQueryString + '&baba=' + Math.random();
+	}
+	
+}
+</script>
+</body>
+</html>
